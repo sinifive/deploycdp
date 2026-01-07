@@ -2,6 +2,8 @@ import streamlit as st
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+from torchvision import models
+import torch.nn as nn
 import os
 import urllib.request
 
@@ -26,17 +28,23 @@ class_names = load_class_names()
 
 # Load model
 @st.cache_resource
+@st.cache_resource
 def load_model():
-    # Download model if not present
     if not os.path.exists(MODEL_PATH):
         with st.spinner("Downloading model..."):
             urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
-    model = torch.load(MODEL_PATH, map_location="cpu")
+    # Rebuild model architecture
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, len(class_names))
+
+    # Load trained weights
+    state_dict = torch.load(MODEL_PATH, map_location="cpu")
+    model.load_state_dict(state_dict)
+
     model.eval()
     return model
 
-model = load_model()
 
 # Image transforms
 transform = transforms.Compose([
@@ -68,3 +76,4 @@ if uploaded_file:
 
         st.success(f"**Disease:** {disease}")
         st.info(f"**Confidence:** {confidence:.2f}%")
+
