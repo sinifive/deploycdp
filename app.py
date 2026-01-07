@@ -2,18 +2,18 @@ import streamlit as st
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
-import numpy as np
+import os
+import urllib.request
 
-# ---------- Page Config ----------
-st.set_page_config(
-    page_title="Crop Disease Detection",
-    layout="centered"
-)
-
+# Page config
+st.set_page_config(page_title="Crop Disease Detection", layout="centered")
 st.title("🌱 Crop Disease Detection")
-st.write("Upload a crop leaf image to predict disease")
 
-# ---------- Load Class Names ----------
+# Model download URL
+MODEL_URL = "https://github.com/sinifive/deploycdp/releases/download/v1.0/best_model.pth"
+MODEL_PATH = "best_model.pth"
+
+# Load class names
 @st.cache_resource
 def load_class_names(path="class_names.txt"):
     classes = []
@@ -24,17 +24,21 @@ def load_class_names(path="class_names.txt"):
 
 class_names = load_class_names()
 
-# ---------- Load Model ----------
+# Load model
 @st.cache_resource
-def load_model(path="best_model.pth"):
-    device = torch.device("cpu")
-    model = torch.load(path, map_location=device)
+def load_model():
+    # Download model if not present
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("Downloading model..."):
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+
+    model = torch.load(MODEL_PATH, map_location="cpu")
     model.eval()
     return model
 
 model = load_model()
 
-# ---------- Image Transform ----------
+# Image transforms
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -44,11 +48,8 @@ transform = transforms.Compose([
     )
 ])
 
-# ---------- UI ----------
-uploaded_file = st.file_uploader(
-    "Upload leaf image",
-    type=["jpg", "jpeg", "png"]
-)
+# UI
+uploaded_file = st.file_uploader("Upload leaf image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
@@ -57,7 +58,6 @@ if uploaded_file:
     if st.button("🔍 Predict Disease"):
         with st.spinner("Analyzing image..."):
             img_tensor = transform(image).unsqueeze(0)
-
             with torch.no_grad():
                 outputs = model(img_tensor)
                 probs = torch.softmax(outputs, dim=1)[0]
